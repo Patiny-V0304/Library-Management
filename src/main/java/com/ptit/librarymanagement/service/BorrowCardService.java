@@ -1,0 +1,131 @@
+package com.ptit.librarymanagement.service;
+
+import com.ptit.librarymanagement.common.dbutils.DbConnection;
+import com.ptit.librarymanagement.common.transactionmanager.Transactional;
+import com.ptit.librarymanagement.context.dao.BaseDAOFactory;
+import com.ptit.librarymanagement.context.dao.DAOFactory;
+import com.ptit.librarymanagement.dao.BookDAO;
+import com.ptit.librarymanagement.dao.BorrowCardDAO;
+import com.ptit.librarymanagement.dao.ReaderDAO;
+import com.ptit.librarymanagement.dto.BookDTO;
+import com.ptit.librarymanagement.dto.BorrowCardDTO;
+import com.ptit.librarymanagement.common.enums.BorrowState;
+
+import java.sql.Connection;
+import java.util.List;
+
+
+public class BorrowCardService {
+    private final BorrowCardDAO borrowCardDAO;
+    private final BookDAO bookDAO;
+    private final ReaderDAO readerDAO;
+
+
+
+    public BorrowCardService (Connection connection) {
+        this.borrowCardDAO = new BorrowCardDAO(connection);
+        this.bookDAO = new BookDAO(connection);
+        this.readerDAO = new ReaderDAO(connection);
+
+    }
+
+    public BorrowCardService (DAOFactory daoFactory) {
+        this.borrowCardDAO = daoFactory.getBorrowCardDAO();
+        this.bookDAO = daoFactory.getBookDAO();
+        this.readerDAO = daoFactory.getReaderDAO();
+    }
+
+    public List<BorrowCardDTO> getAllBorrowCard () {
+        return borrowCardDAO.getAllBorrowCard();
+    }
+
+    public List<BorrowCardDTO> getBorrowCardByIdOrNameReader (Integer id, String name) {
+        return borrowCardDAO.getBorrowCardByIdOrNameReader(id, name);
+    }
+
+    public BorrowCardDTO getBorrowCardById (Integer id) {
+
+        BorrowCardDTO cardDTO = borrowCardDAO.getBorrowCardById(id);
+        cardDTO.setBooks(bookDAO.getBookByBorrowCard(cardDTO));
+        cardDTO.setReader(readerDAO.getReaderById(cardDTO.getReader().getId()).get());
+        return cardDTO;
+    }
+
+
+    public List<BookDTO> getBookOfBorrowCard (BorrowCardDTO cardDTO) {
+        return bookDAO.getBookByBorrowCard(cardDTO);
+    }
+    @Transactional
+    public void returnBook (BorrowCardDTO card) {
+        for (BookDTO book : bookDAO.getBookByBorrowCard(card)) {
+            book.returnBook();
+            bookDAO.updateBook(book);
+        }
+        borrowCardDAO.deleteBookInBorrowCard(card);
+        borrowCardDAO.deleteBorrowCard(card);
+
+    }
+
+    public void returnBooks (BorrowCardDTO card) {
+        for (BookDTO book : bookDAO.getBookByBorrowCard(card)) {
+            book.returnBook();
+            bookDAO.updateBook(book);
+        }
+        card.setState("Đã trả");
+//        borrowCardDAO.deleteBookInBorrowCard(card);
+        borrowCardDAO.updateBorrowCardOfReader(card);
+
+    }
+
+    public void deleteBorrowCard (BorrowCardDTO card) {
+        for (BookDTO book : bookDAO.getBookByBorrowCard(card)) {
+            book.returnBook();
+            bookDAO.updateBook(book);
+        }
+        card.setState("Đã trả");
+        borrowCardDAO.deleteBookInBorrowCard(card);
+        borrowCardDAO.deleteBorrowCard(card);
+
+    }
+
+
+    public void update(BorrowCardDTO cardDTO) {
+        borrowCardDAO.updateBorrowCardOfReader(cardDTO);
+
+    }
+
+    public void createBorrowCard (BorrowCardDTO borrowCard) {
+        Integer i = borrowCardDAO.insertBorrowCard(borrowCard);
+        borrowCard.setId(i);
+
+        for (BookDTO book : borrowCard.getBooks()) {
+            borrowCardDAO.insertBookBorrowCard(borrowCard.getId(), book.getId());
+        }
+    }
+
+
+    public List<BorrowCardDTO> getAllBorrowCardByState (BorrowState borrowState) {
+        return borrowCardDAO.getBorrowCardByState(borrowState);
+    }
+
+
+    public void loadStateAllBorrowCard () {
+        borrowCardDAO.loadStateAllBorrowCard();
+    }
+
+
+
+    public static void main(String[] args) {
+        DAOFactory factory = new BaseDAOFactory(DbConnection.getConnection());
+        BookDAO bookDAO1 = factory.getBookDAO();
+        bookDAO1.getBookByBorrowCard(BorrowCardDTO.builder().id(14).build());
+        System.out.println();
+    }
+
+
+
+
+
+
+
+}
